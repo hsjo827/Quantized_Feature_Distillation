@@ -50,11 +50,11 @@ parser.add_argument('--num_classes', type=int, default=10, help='number of class
 
 # training settings
 parser.add_argument('--batch_size', type=int, default=256, help='mini-batch size for training')
-parser.add_argument('--epochs', type=int, default=400, help='number of epochs for training')
-parser.add_argument('--optimizer_m', type=str, default='Adam', choices=('SGD','Adam'), help='optimizer for model paramters')
-parser.add_argument('--optimizer_q', type=str, default='Adam', choices=('SGD','Adam'), help='optimizer for quantizer paramters')
+parser.add_argument('--epochs', type=int, default=200, help='number of epochs for training')
+parser.add_argument('--optimizer_m', type=str, default='SGD', choices=('SGD','Adam'), help='optimizer for model paramters')
+parser.add_argument('--optimizer_q', type=str, default='SGD', choices=('SGD','Adam'), help='optimizer for quantizer paramters')
 parser.add_argument('--lr_m', type=float, default=4e-3, help='learning rate for model parameters')
-parser.add_argument('--lr_q', type=float, default=1e-5, help='learning rate for quantizer parameters')
+parser.add_argument('--lr_q', type=float, default=4e-5, help='learning rate for quantizer parameters')
 parser.add_argument('--lr_m_end', type=float, default=0.0, help='final learning rate for model parameters (for cosine)')
 parser.add_argument('--lr_q_end', type=float, default=0.0, help='final learning rate for quantizer parameters (for cosine)')
 parser.add_argument('--decay_schedule_m', type=str, default='150-300', help='learning rate decaying schedule (for step)')
