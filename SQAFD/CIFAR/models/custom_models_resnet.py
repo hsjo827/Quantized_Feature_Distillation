@@ -146,6 +146,7 @@ class ResNet(nn.Module):
                 f4 = self.feature_quantizer(f4, save_dict)
                 out = f4
 
+        out = self.bn2(out) # 추가 
         out = self.linear(out)
 
         block_out1 = [block.out for block in self.layer1]
