@@ -26,8 +26,13 @@ def define_distill_module_and_loss(model_s, model_t, model_params, args, n_data,
     data = torch.randn(2, 3, 32, 32).cuda() 
     model_t.eval()
     model_s.eval()
-    feat_s, block_out_s, _, quant_params = model_s(data, is_feat=True, flatGroupOut=flatGroupOut)
-    feat_t, block_out_t, _, _ = model_t(data, is_feat=True, flatGroupOut=flatGroupOut, quant_params=quant_params)
+
+    if args.use_student_quant_params:
+        feat_s, block_out_s, logit_s, quant_params, fd_map = model_s(data, is_feat=True,flatGroupOut=flatGroupOut)
+    else: 
+        feat_s, block_out_s, logit_s = model_s(data, is_feat=True, flatGroupOut=flatGroupOut)
+
+    feat_t, block_out_t, _, _, _ = model_t(data, is_feat=True, flatGroupOut=flatGroupOut, quant_params=quant_params)
 
     module_list = nn.ModuleList([])
     module_list.append(model_s)
