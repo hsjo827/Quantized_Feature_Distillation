@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import logging
 import sys
+import math
 
 from .custom_modules import QConv
 from .feature_quant_module import FeatureQuantizer
@@ -20,6 +21,18 @@ def _weights_init(m):
     if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d) or isinstance(m, QConv):
         nn.init.kaiming_normal_(m.weight)
 
+
+def build_feature_adapter(t_channel, s_channel):
+    C = [nn.Conv2d(s_channel, t_channel, kernel_size=1, stride=1, padding=0, bias=False),
+         nn.BatchNorm2d(t_channel)]
+    for m in C:
+        if isinstance(m, nn.Conv2d):
+            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            m.weight.data.normal_(0, math.sqrt(2. / n))
+        elif isinstance(m, nn.BatchNorm2d):
+            m.weight.data.fill_(1)
+            m.bias.data.zero_()
+    return nn.Sequential(*C)
 
 
 class MySequential(nn.Sequential):
@@ -54,6 +67,11 @@ class ResNet(nn.Module):
 
         self.linear = nn.Linear(64, num_classes)
 
+        # adapter
+        if self.args.use_adpater:
+            self.adapter = build_feature_adapter(64, 64)
+            print("Feature Adapter 추가")
+        
         # FeatureQuantizer 모듈 추가
         if self.args.QFeatureFlag:
             self.feature_quantizer = FeatureQuantizer(
@@ -121,11 +139,10 @@ class ResNet(nn.Module):
         out = self.layer3(out, save_dict, lambda_dict)
         f3 = out
 
-
         if self.args.use_student_quant_params:
-            last_block = self.layer3[-1]  # layer3의 마지막 블록
-            if isinstance(last_block, QBasicBlock):  # QBasicBlock인지 확인
-                last_conv = last_block.conv2  # 마지막 QConv 레이어
+            last_block = self.layer3[-1]  
+            if isinstance(last_block, QBasicBlock): 
+                last_conv = last_block.conv2 
                 if isinstance(last_conv, QConv):
                     quant_params = {
                         "lA": last_conv.lA.item() if hasattr(last_conv, 'lA') else None,
@@ -139,14 +156,22 @@ class ResNet(nn.Module):
         
         # Feature quantization 적용
         if hasattr(self, 'feature_quantizer'):
-            if self.args.use_student_quant_params:
-                
-                f3 = self.feature_quantizer(f3, save_dict, quant_params)
+            if self.args.use_student_quant_params and self.use_adpater:
+                if self.args.TFeatureOder == 'FQA':
+                    fd_map = self.feature_quantizer(f3, save_dict, quant_params)
+                    fd_map = self.adapter(fd_map)
+                else:
+                    fd_map = self.adpater(f3)
+                    fd_map = self.feature_quantizer(fd_map, save_dict, quant_params)
+            
+            elif self.args.use_student_quant_params and not self.use_adpater:
+                fd_map = self.feature_quantizer(f3, save_dict, quant_params)
+            
             else:
-                f4 = self.feature_quantizer(f4, save_dict)
-                out = f4
+                fd_map = self.feature_quantizer(f4, save_dict) # QFD
+                out = fd_map
 
-        out = self.bn2(out) # 추가 
+        out = self.bn2(out)
         out = self.linear(out)
 
         block_out1 = [block.out for block in self.layer1]
@@ -166,8 +191,11 @@ class ResNet(nn.Module):
         if is_feat:
             if preact:
                 raise NotImplementedError(f"{preact} is not implemented")
-            else:
-                return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, quant_params
+            else: 
+                if self.args.use_student_quant_params:
+                    return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, quant_params, fd_map
+                else: 
+                    return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out
         else:
             return out
 
@@ -242,6 +270,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_hessian', type=str2bool, default=True, help='update scsaling factor using Hessian trace')
     parser.add_argument('--update_every', type=int, default=10, help='update interval in terms of epochs')
     parser.add_argument('--use_student_quant_params', type=str2bool, default=False, help='Enable the use of student quantization parameters during teacher quantization')
+    parser.add_argument('--use_connector', type=str2bool, default=False, help='Enable the use of adapter(connector)')
     args = parser.parse_args()
     args.num_classes = 10
 
