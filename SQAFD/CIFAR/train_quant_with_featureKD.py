@@ -85,6 +85,12 @@ parser.add_argument('--bkwd_scaling_factorF', type=float, default=0.0, help='Sca
 # Teacher quantization 시 Student quant params 사용 여부
 parser.add_argument('--use_student_quant_params', type=str2bool, default=False, help='Enable the use of student quantization parameters during teacher quantization')
 
+# adapter 사용 여부
+parser.add_argument('--use_adpater', type=str2bool, default=False, help='Enable the use of adapter(connector)')
+
+# teacher feature layer order
+parser.add_argument('--TFeatureOder', type=str, choices=['FQA', 'AFQ'], help='FQA is FeatureQuantizer-Adapter, AFQ is Adapter-FeatureQuantizer')
+
 # logging and misc
 parser.add_argument('--gpu_id', type=str, default='0', help='target GPU to use')
 parser.add_argument('--log_dir', type=str, default='./results/ResNet20_CIFAR10/W1A1/')
@@ -410,9 +416,14 @@ for ep in range(args.epochs):
             preact = False
             if args.distill in ['abound']:
                 preact = True
-            feat_s, block_out_s, logit_s, quant_params = model_s(images, save_dict, lambda_dict, is_feat=True, preact=preact, flatGroupOut=flatGroupOut)
+
+            if args.use_student_quant_params:
+                feat_s, block_out_s, logit_s, quant_params, fd_map_s = model_s(images, save_dict, lambda_dict, is_feat=True, preact=preact, flatGroupOut=flatGroupOut)
+            else: 
+                feat_s, block_out_s, logit_s = model_s(images, save_dict, lambda_dict, is_feat=True, preact=preact, flatGroupOut=flatGroupOut)
+
             with torch.no_grad():
-                feat_t, block_out_t, logit_t, _ = model_t(images, is_feat=True, preact=preact, flatGroupOut=flatGroupOut, quant_params=quant_params)
+                feat_t, block_out_t, logit_t , _, _= model_t(images, is_feat=True, preact=preact, flatGroupOut=flatGroupOut, quant_params=quant_params)
                 feat_t = [f.detach() for f in feat_t]
         else:
             pred = model(images, save_dict, lambda_dict)
@@ -428,7 +439,7 @@ for ep in range(args.epochs):
             else: 
                 criterion_mse = torch.nn.MSELoss()
                 if args.use_student_quant_params:
-                    loss_mse = criterion_mse(feat_s[-2], feat_t[-2])
+                    loss_mse = criterion_mse(fd_map_s, feat_t[-2])
                     loss_total = args.kd_gamma * loss_div + (1-args.kd_gamma) * loss_mse # SQAFD Loss
                 else:
                     loss_mse = criterion_mse(feat_s[-1], feat_t[-1])
