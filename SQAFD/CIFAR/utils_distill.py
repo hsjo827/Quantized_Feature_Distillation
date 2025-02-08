@@ -27,12 +27,8 @@ def define_distill_module_and_loss(model_s, model_t, model_params, args, n_data,
     model_t.eval()
     model_s.eval()
 
-    if args.use_student_quant_params:
-        feat_s, block_out_s, logit_s, quant_params, fd_map = model_s(data, is_feat=True,flatGroupOut=flatGroupOut)
-    else: 
-        feat_s, block_out_s, logit_s = model_s(data, is_feat=True, flatGroupOut=flatGroupOut)
-
-    feat_t, block_out_t, _, _, _ = model_t(data, is_feat=True, flatGroupOut=flatGroupOut, quant_params=quant_params)
+    feat_s, block_out_s, logit_s, quant_params, fd_map_s = model_s(data, is_feat=True,flatGroupOut=flatGroupOut)
+    feat_t, block_out_t, logit_t , fd_map_t = model_t(data, is_feat=True, flatGroupOut=flatGroupOut, quant_params=quant_params)
 
     module_list = nn.ModuleList([])
     module_list.append(model_s)
@@ -41,6 +37,9 @@ def define_distill_module_and_loss(model_s, model_t, model_params, args, n_data,
     criterion_div = DistillKL(args.kd_T)
     if args.distill == 'kd':
         criterion_kd = DistillKL(args.kd_T)
+    
+    elif args.distill =='fd':
+        criterion_kd = torch.nn.MSELoss()
 
     elif args.distill == 'crd':
         args.s_dim = feat_s[-1].shape[1]
