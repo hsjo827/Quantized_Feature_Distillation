@@ -101,7 +101,7 @@ then
                     --feature_levels 2 \
                     --baseline False \
                     --use_hessian True \
-                    --update_every 10 \
+                    --update_every 10\
                     --quan_method EWGS \
                     --load_pretrain True \
                     --pretrain_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \

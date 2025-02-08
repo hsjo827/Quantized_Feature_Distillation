@@ -131,7 +131,7 @@ then
                     --kd_gamma 0.5 \
                     --epochs 1200
 
-elif [ $METHOD_TYPE == "SQAKD_T4_W4A4_EWGS/" ] 
+elif [ $METHOD_TYPE == "test/" ] 
 then
     python3 train_quant_with_featureKD.py --gpu_id '0' \
                     --arch 'resnet20_quant' \
@@ -149,8 +149,12 @@ then
                     --distill 'kd' \
                     --teacher_path './results/CIFAR10_ResNet20/fp_sqakd/checkpoint/last_checkpoint.pth' \
                     --teacher_arch 'resnet20_fp' \
-                    --kd_gamma 0.8 \
+                    --use_adapter_t True \
+                    --use_adapter_s True \
+                    --kd_gamma 0.9 \
+                    --kd_alpha 20 \
                     --epochs 1200
+
 fi
 
 
