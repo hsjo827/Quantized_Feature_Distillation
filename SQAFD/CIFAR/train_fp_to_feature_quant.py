@@ -66,13 +66,21 @@ parser.add_argument('--gamma', type=float, default=0.1, help='decaying factor (f
 # arguments for quantization
 parser.add_argument('--QWeightFlag', type=str2bool, default=False, help='do weight quantization')
 parser.add_argument('--QActFlag', type=str2bool, default=False, help='do activation quantization')
-parser.add_argument('--model_type', type=str, default='Teacher', choices=['Teacher', 'Student', 'FP'], help='Teacher or Student')
-parser.add_argument('--feature_levels', type=int, default=2, help='number of feature quantization levels')
 parser.add_argument('--baseline', type=str2bool, default=True, help='training with STE')
 parser.add_argument('--bkwd_scaling_factorF', type=float, default=0.0, help='scaling factor for feature')
 parser.add_argument('--use_hessian', type=str2bool, default=False, help='update scsaling factor using Hessian trace')
 parser.add_argument('--update_every', type=int, default=10, help='update interval in terms of epochs')
 parser.add_argument('--quan_method', type=str, default='EWGS', help='training with different quantization methods')
+
+
+parser.add_argument('--train_mode', type=str, default='teacher', choices=['fp', 'teacher', 'student'], help='training mode: fp model training / teacher model training / knowledge distillation')
+parser.add_argument('--QFeatureFlag', type=str2bool, default=True, help='add feature quantizer to model')
+parser.add_argument('--feature_levels', type=int, default=2, help='number of feature quantization levels')
+parser.add_argument('--train_last_conv', type=str2bool, default=False, help='train last convolution layer of teacher model')
+parser.add_argument('--use_student_quant_params', type=str2bool, default=False, help='Enable the use of student quantization parameters during teacher quantization')
+parser.add_argument('--use_adapter_s', type=str2bool, default=False, help='Enable the use of adapter(connector) for Student')
+parser.add_argument('--use_adapter_t', type=str2bool, default=False, help='Enable the use of adapter(connector) for Teacher') 
+parser.add_argument('--use_map_norm', type=str2bool, default=False, help='Enable the use of feature normalization')
 
 # logging and misc
 parser.add_argument('--gpu_id', type=str, default='0', help='target GPU to use')
@@ -362,7 +370,7 @@ for ep in range(args.epochs):
             
     for m in model.modules():
         if isinstance(m, FeatureQuantizer):
-            if args.model_type == 'Teacher':
+            if args.train_mode == 'teacher':
                 logging.info("lF: {}".format(m.lF))
                 logging.info("uF: {}".format(m.uF))
                 logging.info("grad_scaleF: {}".format(m.bkwd_scaling_factorF.item()))
