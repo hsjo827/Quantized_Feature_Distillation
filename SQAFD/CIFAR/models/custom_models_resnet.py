@@ -22,19 +22,6 @@ def _weights_init(m):
         nn.init.kaiming_normal_(m.weight)
 
 
-# def build_feature_adapter(t_channel, s_channel):
-#     C = [nn.Conv2d(s_channel, t_channel, kernel_size=1, stride=1, padding=0, bias=False),
-#          nn.BatchNorm2d(t_channel)]
-#     for m in C:
-#         if isinstance(m, nn.Conv2d):
-#             n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-#             m.weight.data.normal_(0, math.sqrt(2. / n))
-#         elif isinstance(m, nn.BatchNorm2d):
-#             m.weight.data.fill_(1)
-#             m.bias.data.zero_()
-#     return nn.Sequential(*C)
-
-
 class MySequential(nn.Sequential):
     def forward(self, x, save_dict=None, lambda_dict=None):
         block_num = 0
@@ -75,8 +62,8 @@ class ResNet(nn.Module):
             )
             print("Feature Adapter 추가")
         
-        # FeatureQuantizer 모듈 추가
-        if self.args.model_type == 'Teacher':
+        # teache model FeatureQuantizer
+        if self.args.QFeatureFlag:
             self.feature_quantizer = FeatureQuantizer(
                 num_levels=self.args.feature_levels,  
                 scaling_factor=self.args.bkwd_scaling_factorF,
@@ -142,7 +129,7 @@ class ResNet(nn.Module):
         out = self.layer3(out, save_dict, lambda_dict)
         f3 = out
 
-        if self.args.use_student_quant_params and self.args.model_type == 'Student':
+        if self.args.train_mode == 'student' and not hasattr(self, 'feature_quantizer') and self.args.use_student_quant_params:
             last_block = self.layer3[-1]  
             if isinstance(last_block, QBasicBlock): 
                 last_conv = last_block.conv2 
@@ -153,43 +140,61 @@ class ResNet(nn.Module):
                         "output_scale": last_conv.output_scale.item() if hasattr(last_conv, 'output_scale') else None
                     }
         
-        out = F.avg_pool2d(out, out.size()[3])
-        out = out.view(out.size(0), -1)
-        f4 = out
         
         # Teacher Architecture
-        if self.args.model_type == 'Teacher':
+        if hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
+            # use student quantizer parameter and adapter
             if self.args.use_student_quant_params and self.args.use_adapter_t:
                 if self.args.TFeatureOder == 'FQA':
                     fd_map_t = self.feature_quantizer(f3, save_dict, quant_params)
                     fd_map_t = self.adapter(fd_map_t)
-                else:
+                elif self.args.TFeatureOder == 'AFQ':
                     fd_map_t = self.adapter(f3)
                     fd_map_t = self.feature_quantizer(fd_map_t, save_dict, quant_params)
 
+            # use QFD method quantizer parameter and adapter
             elif not self.args.use_student_quant_params and self.args.use_adapter_t:
                 if self.args.TFeatureOder == 'FQA':
                     fd_map_t = self.feature_quantizer(f3, save_dict)
                     fd_map_t = self.adapter(fd_map_t)
-                else:
+                elif self.args.TFeatureOder == 'AFQ':
                     fd_map_t = self.adapter(f3)
                     fd_map_t = self.feature_quantizer(fd_map_t, save_dict)
 
+            # use student quantizer parameter
             elif self.args.use_student_quant_params and not self.args.use_adapter_t:
                 fd_map_t = self.feature_quantizer(f3, save_dict, quant_params)
+                if self.args.use_map_norm:
+                    fd_map_t = F.normalize(fd_map_t, p=2, dim=1, eps=1e-5)
 
+            # use QFD method quantizer parameter
             elif not self.args.use_student_quant_params and not self.args.use_adapter_t:
-                fd_map_t = self.feature_quantizer(f3, save_dict) 
-                out = fd_map_t
+                fd_map_t = self.feature_quantizer(f3, save_dict)
+                if self.args.use_map_norm:
+                    fd_map_t = F.normalize(fd_map_t, p=2, dim=1, eps=1e-5)
+        
 
         # Student Architecture
-        else:
+        elif not hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
             if self.args.use_adapter_s:
                 fd_map_s = self.adapter(f3)
 
             else:
                 fd_map_s = f3
+                if self.args.use_map_norm:
+                    fd_map_s = F.normalize(fd_map_s, p=2, dim=1, eps=1e-5)
 
+        
+        # train teacher feature quantizer by QFD method
+        elif hasattr(self, 'feature_quantizer') and self.args.train_mode == 'teacher':
+            out = self.feature_quantizer(f3, save_dict)
+
+        
+
+
+        out = F.avg_pool2d(out, out.size()[3])
+        out = out.view(out.size(0), -1)
+        f4 = out
 
         out = self.bn2(out)
         out = self.linear(out)
@@ -212,11 +217,11 @@ class ResNet(nn.Module):
             if preact:
                 raise NotImplementedError(f"{preact} is not implemented")
             else: 
-                if self.args.model_type == 'Teacher':
+                if hasattr(self, 'feature_quantizer'):
                     return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, fd_map_t
-                elif self.args.model_type == 'Student':
+                elif not hasattr(self, 'feature_quantizer'):
                     return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, quant_params, fd_map_s
-                else : 
+                else:
                     return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out
         else:
             return out
@@ -281,7 +286,7 @@ if __name__ == "__main__":
     parser.add_argument('--quan_method', type=str, default='EWGS', choices=['PACT', 'EWGS', 'LSQ'], help='training with different quantization methods')
     parser.add_argument('--QWeightFlag', type=str2bool, default=True, help='do weight quantization')
     parser.add_argument('--QActFlag', type=str2bool, default=True, help='do activation quantization')
-    parser.add_argument('--model_type', type=str, default='Teacher', choices=['Teacher', 'Student', 'FP'], help='Teacher or Student')
+    parser.add_argument('--train_mode', type=str, default='Teacher', choices=['fp', 'teacher', 'student'], help='Teacher or Student')
     parser.add_argument('--weight_levels', type=int, default=2, help='number of weight quantization levels')
     parser.add_argument('--act_levels', type=int, default=2, help='number of activation quantization levels')
     parser.add_argument('--feature_levels', type=int, default=2, help='number of feature quantization levels')
