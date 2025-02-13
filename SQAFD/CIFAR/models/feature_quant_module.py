@@ -57,10 +57,6 @@ class FeatureQuantizer(nn.Module):
             self.lF.data.fill_(quant_params.get("lA", self.lF.item()))
             self.uF.data.fill_(quant_params.get("uA", self.uF.item()))
             self.output_scale.data.fill_(quant_params.get("output_scale", self.output_scale.item()))
-            
-            logging.info(f"Feature quantizer lF updated: {old_lF:.4f} -> {self.lF.item():.4f}")
-            logging.info(f"Feature quantizer uF updated: {old_uF:.4f} -> {self.uF.item():.4f}")
-            logging.info(f"Feature quantizer output_scale updated: {old_scale:.4f} -> {self.output_scale.item():.4f}")
 
         x = (x - self.lF) / (self.uF - self.lF)
         x = x.clamp(min=0, max=1)
@@ -72,7 +68,7 @@ class FeatureQuantizer(nn.Module):
 
         if self.hook_feature_values:
             self.buff_feature = x
-            self.buff_feature.retrain_grad()
+            self.buff_feature.retain_grad()
 
         x = x * self.output_scale
 

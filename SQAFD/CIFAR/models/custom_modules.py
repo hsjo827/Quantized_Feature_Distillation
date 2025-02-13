@@ -151,8 +151,6 @@ class QConv(nn.Conv2d):
             self.buff_act = x
             self.buff_act.retain_grad()
 
-        x *= self.output_scale  # 수정
-
         return x
 
 

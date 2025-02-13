@@ -54,7 +54,7 @@ def load_teacher_model(model_t, teacher_path):
 
 ### Test accuracy @ last checkpoint and best checkpoint
 def test_accuracy(checkpoint_path, model, logging, device, test_loader):
-    trained_model = torch.load(checkpoint_path, weights_only=True) # 이 부분 수정했음.
+    trained_model = torch.load(checkpoint_path, weights_only=True)
     model.load_state_dict(trained_model['model'])
     print(f"\n{checkpoint_path} is loaded")
     logging.info(f"\n{checkpoint_path} is loaded")

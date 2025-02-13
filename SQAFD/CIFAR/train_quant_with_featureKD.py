@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import torch.nn as nn
 
+from models.blocks_resnet import *
 from models.custom_modules import *
 from models.custom_models_resnet import *
 from models.custom_models_vgg import *
@@ -51,18 +52,28 @@ parser.add_argument('--num_classes', type=int, default=10, help='number of class
 # training settings
 parser.add_argument('--batch_size', type=int, default=256, help='mini-batch size for training')
 parser.add_argument('--epochs', type=int, default=200, help='number of epochs for training')
-parser.add_argument('--optimizer_m', type=str, default='SGD', choices=('SGD','Adam'), help='optimizer for model paramters')
-parser.add_argument('--optimizer_q', type=str, default='SGD', choices=('SGD','Adam'), help='optimizer for quantizer paramters')
+parser.add_argument('--optimizer_m', type=str, default='Adam', choices=('SGD','Adam'), help='optimizer for model paramters')
+parser.add_argument('--optimizer_a', type=str, default='Adam', choices=('SGD','Adam'), help='optimizer for adapter paramters')
+parser.add_argument('--optimizer_q', type=str, default='Adam', choices=('SGD','Adam'), help='optimizer for quantizer paramters')
+parser.add_argument('--optimizer_c', type=str, default='Adam', choices=('SGD','Adam'), help='optimizer for last conv paramters')
 parser.add_argument('--lr_m', type=float, default=1e-3, help='learning rate for model parameters')
+parser.add_argument('--lr_a', type=float, default=1e-3, help='learning rate for adapter parameters')
 parser.add_argument('--lr_q', type=float, default=1e-5, help='learning rate for quantizer parameters')
+parser.add_argument('--lr_c', type=float, default=1e-5, help='learning rate for adapter parameters')
 parser.add_argument('--lr_m_end', type=float, default=0.0, help='final learning rate for model parameters (for cosine)')
+parser.add_argument('--lr_a_end', type=float, default=0.0, help='final learning rate for adapter parameters (for cosine)')
 parser.add_argument('--lr_q_end', type=float, default=0.0, help='final learning rate for quantizer parameters (for cosine)')
+parser.add_argument('--lr_c_end', type=float, default=0.0, help='final learning rate for last conv parameters (for cosine)')
 parser.add_argument('--decay_schedule_m', type=str, default='150-300', help='learning rate decaying schedule (for step)')
+parser.add_argument('--decay_schedule_a', type=str, default='150-300', help='learning rate decaying schedule (for step)')
 parser.add_argument('--decay_schedule_q', type=str, default='150-300', help='learning rate decaying schedule (for step)')
+parser.add_argument('--decay_schedule_c', type=str, default='150-300', help='learning rate decaying schedule (for step)')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum for SGD')
 parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay for model parameters')
 parser.add_argument('--lr_scheduler_m', type=str, default='cosine', choices=('step','cosine'), help='type of the scheduler')
+parser.add_argument('--lr_scheduler_a', type=str, default='cosine', choices=('step','cosine'), help='type of the scheduler')
 parser.add_argument('--lr_scheduler_q', type=str, default='cosine', choices=('step','cosine'), help='type of the scheduler')
+parser.add_argument('--lr_scheduler_c', type=str, default='cosine', choices=('step','cosine'), help='type of the scheduler')
 parser.add_argument('--gamma', type=float, default=0.1, help='decaying factor (for step)')
 
 # arguments for quantization
@@ -73,23 +84,22 @@ parser.add_argument('--act_levels', type=int, default=2, help='number of activat
 parser.add_argument('--baseline', type=str2bool, default=False, help='training with STE')
 parser.add_argument('--bkwd_scaling_factorW', type=float, default=0.0, help='scaling factor for weights')
 parser.add_argument('--bkwd_scaling_factorA', type=float, default=0.0, help='scaling factor for activations')
-parser.add_argument('--use_hessian', type=str2bool, default=True, help='update scsaling factor using Hessian trace')
+parser.add_argument('--use_hessian', type=str2bool, default=True, help='update scaling factor using Hessian trace')
 parser.add_argument('--update_every', type=int, default=10, help='update interval in terms of epochs')
 parser.add_argument('--quan_method', type=str, default='EWGS', help='training with different quantization methods')
 
-# feature KD는 teacher에서는 True, student에서는 False로 두면 됨.
-parser.add_argument('--QFeatureFlag', type=str2bool, default=False, help='do activation quantization')
+# arguments for feature quantization
+parser.add_argument('--train_mode', type=str, default='student', choices=['fp', 'teacher', 'student'], help='training mode: fp model training / teacher model training / knowledge distillation')
+parser.add_argument('--QFeatureFlag', type=str2bool, default=False, help='add feature quantizer to model')
 parser.add_argument('--feature_levels', type=int, default=2, help='number of feature quantization levels')
 parser.add_argument('--bkwd_scaling_factorF', type=float, default=0.0, help='Scaling factor for feature quantization')
-
-# Teacher quantization 시 Student quant params 사용 여부
+parser.add_argument('--TFeatureOder', type=str, default='FQA', choices=['FQA', 'AFQ'], help='FQA is FeatureQuantizer-Adapter, AFQ is Adapter-FeatureQuantizer')
+parser.add_argument('--train_last_conv', type=str2bool, default=False, help='train last convolution layer of teacher model')
 parser.add_argument('--use_student_quant_params', type=str2bool, default=False, help='Enable the use of student quantization parameters during teacher quantization')
+parser.add_argument('--use_adapter_s', type=str2bool, default=False, help='Enable the use of adapter(connector) for Student')
+parser.add_argument('--use_adapter_t', type=str2bool, default=False, help='Enable the use of adapter(connector) for Teacher') 
+parser.add_argument('--use_map_norm', type=str2bool, default=False, help='Enable the use of feature normalization')
 
-# adapter 사용 여부
-parser.add_argument('--use_adpater', type=str2bool, default=False, help='Enable the use of adapter(connector)')
-
-# teacher feature layer order
-parser.add_argument('--TFeatureOder', type=str, choices=['FQA', 'AFQ'], help='FQA is FeatureQuantizer-Adapter, AFQ is Adapter-FeatureQuantizer')
 
 # logging and misc
 parser.add_argument('--gpu_id', type=str, default='0', help='target GPU to use')
@@ -99,9 +109,8 @@ parser.add_argument('--pretrain_path', type=str, default='./results/CIFAR10_ResN
 
 
 # knowledge distillation
-parser.add_argument('--distill', type=str, default=None, choices=['kd', 'crdst','hint', 'attention', 'similarity',
-                                                    'correlation', 'vid', 'crd', 'kdsvd', 'fsp',
-                                                    'rkd', 'pkt', 'abound', 'factor', 'nst'])
+parser.add_argument('--distill', type=str, default=None, choices=['kd', 'fd', 'crdst','hint', 'attention', 'similarity', 'correlation', 
+                                                                    'vid', 'crd', 'kdsvd', 'fsp', 'rkd', 'pkt', 'abound', 'factor', 'nst'])
 parser.add_argument('--teacher_path', type=str, default='./results/CIFAR10_ResNet20/fp/checkpoint/last_checkpoint.pth', help='path for pretrained teacher model with quantizer')
 parser.add_argument('--teacher_arch', type=str, default='resnet20_fp', help='teacher model architecture')
 parser.add_argument('--kd_T', type=float, default=4, help='temperature for KD distillation')
@@ -189,14 +198,14 @@ else:
 
 
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                           batch_size=args.batch_size,
-                                           shuffle=True,
-                                           num_workers=args.num_workers,
-                                           worker_init_fn=None if args.seed is None else _init_fn)
+                                        batch_size=args.batch_size,
+                                        shuffle=True,
+                                        num_workers=args.num_workers,
+                                        worker_init_fn=None if args.seed is None else _init_fn)
 test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
-                                          batch_size=100,
-                                          shuffle=False,
-                                          num_workers=args.num_workers)
+                                        batch_size=100,
+                                        shuffle=False,
+                                        num_workers=args.num_workers)
 printRed(f"dataset: {args.dataset}, num of training data (50,000): {len(train_dataset)}, number of testing data (10,000): {len(test_dataset)}")                                          
 
 
@@ -242,65 +251,177 @@ else:
 
 ### initialize optimizer, scheduler, loss function
 if args.quan_method == "EWGS" or args.baseline:
-    trainable_params = list(model.parameters())
-    model_params = []
-    quant_params = []
+    trainable_params_s = list(model.parameters())
+    model_params_s = []
+    quant_params_s = []
+    adapter_params_s = []
+
+    adapter_layers_s =[]
+
+    if hasattr(model, 'adapter'):
+        adapter_layers_s.extend(list(model.adapter))
+        for layer in model.adapter:
+            if isinstance(layer, nn.Conv2d):
+                adapter_params_s.append(layer.weight)
+                if layer.bias is not None:
+                    adapter_params_s.append(layer.bias)
+                print('Adapter', layer)
+            elif isinstance(layer, nn.BatchNorm2d):
+                if layer.affine:
+                    adapter_params_s.append(layer.weight)
+                    adapter_params_s.append(layer.bias)
+                print('Adapter', layer)
+
     for m in model.modules():
-        if isinstance(m, QConv):
-            model_params.append(m.weight)
+        if args.use_adapter_s and m in adapter_layers_s:
+            continue
+
+        elif isinstance(m, QConv):
+            model_params_s.append(m.weight)
             if m.bias is not None:
-                model_params.append(m.bias)
+                model_params_s.append(m.bias)
             if m.quan_weight:
-                quant_params.append(m.lW)
-                quant_params.append(m.uW)
+                quant_params_s.append(m.lW)
+                quant_params_s.append(m.uW)
             if m.quan_act:
-                quant_params.append(m.lA)
-                quant_params.append(m.uA)
-                quant_params.append(m.lA_t)
-                quant_params.append(m.uA_t)
+                quant_params_s.append(m.lA)
+                quant_params_s.append(m.uA)
+                quant_params_s.append(m.lA_t)
+                quant_params_s.append(m.uA_t)
             if m.quan_act or m.quan_weight:
-                quant_params.append(m.output_scale)
+                quant_params_s.append(m.output_scale)
             print("QConv", m)
         elif isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-            model_params.append(m.weight)
+            model_params_s.append(m.weight)
             if m.bias is not None:
-                model_params.append(m.bias)
+                model_params_s.append(m.bias)
             print("nn", m)
         elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm1d):
             if m.affine:
-                model_params.append(m.weight)
-                model_params.append(m.bias)
-    print("# total params:", sum(p.numel() for p in trainable_params))
-    print("# model params:", sum(p.numel() for p in model_params))
-    print("# quantizer params:", sum(p.numel() for p in quant_params))
-    logging.info("# total params: {}".format(sum(p.numel() for p in trainable_params)))
-    logging.info("# model params: {}".format(sum(p.numel() for p in model_params)))
-    logging.info("# quantizer params: {}".format(sum(p.numel() for p in quant_params)))
-    if sum(p.numel() for p in trainable_params) != sum(p.numel() for p in model_params) + sum(p.numel() for p in quant_params):
+                model_params_s.append(m.weight)
+                model_params_s.append(m.bias)
+                
+
+    total_params_s = sum(p.numel() for p in trainable_params_s)
+    model_params_count_s = sum(p.numel() for p in model_params_s)
+    quant_params_count_s = sum(p.numel() for p in quant_params_s)
+    adapter_params_count_s = sum(p.numel() for p in adapter_params_s)
+
+    print("# total student params:", total_params_s)
+    print("# student model params:", model_params_count_s)
+    print("# student quantizer params:", quant_params_count_s)
+    print("# student adapter params:", adapter_params_count_s)
+    logging.info("# total student params: {}".format(total_params_s))
+    logging.info("# student model params: {}".format(model_params_count_s))
+    logging.info("# student quantizer params: {}".format(quant_params_count_s))
+    logging.info("# student adapter params: {}".format(adapter_params_count_s))
+    if total_params_s != (model_params_count_s + quant_params_count_s + adapter_params_count_s):
         raise Exception('Mismatched number of trainable parmas')
 else:
     raise NotImplementedError(f"Not implement {args.quan_method}!")
+
 
 if args.distill:
     args.QFeatureFlag = True
     model_class_t = globals().get(args.teacher_arch)
     model_t = model_class_t(args)
     model_t.to(device)
-
-    model_t = utils.load_teacher_model(model_t, args.teacher_path)
-
-    num_training_data = len(train_dataset)
-    module_list, model_params, criterion_list = utils_distill.define_distill_module_and_loss(model, model_t, model_params, args, num_training_data, train_loader)
     args.QFeatureFlag = False
 
-if define_quantizer_scheduler:
-    # optimizer for quantizer params
-    if args.optimizer_q == 'SGD':
-        optimizer_q = torch.optim.SGD(quant_params, lr=args.lr_q)
-    elif args.optimizer_q == 'Adam':
-        optimizer_q = torch.optim.Adam(quant_params, lr=args.lr_q)
+    trainable_params_t = list(model_t.parameters())
+    model_params_t = []
+    quant_params_t = []
+    adapter_params_t = []
+    last_conv_params_t = []
 
-    # scheduler for quantizer params
+    adapter_layers_t =[]
+    last_conv_layers_t = []
+
+    if hasattr(model_t, 'adapter'):
+        adapter_layers_t.extend(list(model_t.adapter))
+        for layer in model_t.adapter:
+            if isinstance(layer, nn.Conv2d):
+                adapter_params_t.append(layer.weight)
+                if layer.bias is not None:
+                    adapter_params_t.append(layer.bias)
+                print('Adapter', layer)
+            elif isinstance(layer, nn.BatchNorm2d):
+                if layer.affine:
+                    adapter_params_t.append(layer.weight)
+                    adapter_params_t.append(layer.bias)
+                print('Adapter', layer)
+
+    if args.train_last_conv:
+        last_block = model_t.layer3[-1]
+        if isinstance(last_block, BasicBlock):
+            last_conv_layers_t.extend([last_block.conv2, last_block.bn2])
+            last_conv_params_t.append(last_block.conv2.weight)
+            if last_block.conv2.bias is not None:
+                last_conv_params_t.append(last_block.conv2.bias)
+            if last_block.bn2.affine:
+                last_conv_params_t.append(last_block.bn2.weight)
+                last_conv_params_t.append(last_block.bn2.bias)
+            print('Last Conv', last_block.conv2)
+
+    for m in model_t.modules():
+        if (args.use_adapter_t and m in adapter_layers_t) or (args.train_last_conv and m in last_conv_layers_t):
+            continue
+
+        elif isinstance(m, FeatureQuantizer):
+            quant_params_t.append(m.lF)
+            quant_params_t.append(m.uF)
+            quant_params_t.append(m.output_scale)
+            print("FeatureQuantizer", m)
+        elif isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+            model_params_t.append(m.weight)
+            if m.bias is not None:
+                model_params_t.append(m.bias)
+            print("nn", m)
+        elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm1d):
+            if m.affine:
+                model_params_t.append(m.weight)
+                model_params_t.append(m.bias)
+
+    total_params_t = sum(p.numel() for p in trainable_params_t)
+    model_params_count_t = sum(p.numel() for p in model_params_t)
+    quant_params_count_t = sum(p.numel() for p in quant_params_t)
+    adapter_params_count_t = sum(p.numel() for p in adapter_params_t)
+    last_conv_params_count_t = sum(p.numel() for p in last_conv_params_t)
+
+    print("# Teacher total params:", total_params_t)
+    print("# Teacher model params:", model_params_count_t)
+    print("# Teacher quantizer params:", quant_params_count_t)
+    print("# Teacher adapter params:", adapter_params_count_t)
+    print("# Teacher last conv params:", last_conv_params_count_t)
+    logging.info("# Teacher total params: {}".format(total_params_t))
+    logging.info("# Teacher model params: {}".format(model_params_count_t))
+    logging.info("# Teacher quantizer params: {}".format(quant_params_count_t))
+    logging.info("# Teacher adapter params: {}".format(adapter_params_count_t))
+    logging.info("# Teacher last conv params: {}".format(last_conv_params_count_t))
+    if total_params_t != (model_params_count_t + quant_params_count_t + adapter_params_count_t + last_conv_params_count_t):
+        raise Exception('Mismatched number of trainable parmas')
+
+    model_t = utils.load_teacher_model(model_t, args.teacher_path)
+    
+    for param in model_params_t:
+        param.requires_grad = False
+    for param in quant_params_t:
+        param.requires_grad = False
+    for param in adapter_params_t:
+        param.requires_grad = True
+    for param in last_conv_params_t:
+        param.requires_grad = True
+        
+    num_training_data = len(train_dataset)
+    module_list, model_params, criterion_list = utils_distill.define_distill_module_and_loss(model, model_t, model_params_s, args, num_training_data, train_loader)
+    
+# optimizer and scheduler for quantizer params
+if define_quantizer_scheduler:
+    if args.optimizer_q == 'SGD':
+        optimizer_q = torch.optim.SGD(quant_params_s, lr=args.lr_q)
+    elif args.optimizer_q == 'Adam':
+        optimizer_q = torch.optim.Adam(quant_params_s, lr=args.lr_q)
+
     if args.lr_scheduler_q == "step":
         if args.decay_schedule_q is not None:
             milestones_q = list(map(lambda x: int(x), args.decay_schedule_q.split('-')))
@@ -311,14 +432,12 @@ if define_quantizer_scheduler:
         scheduler_q = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_q, T_max=args.epochs, eta_min=args.lr_q_end)
 
 
-# optimizer for model params
+# optimizer and scheduler for model params
 if args.optimizer_m == 'SGD':
     optimizer_m = torch.optim.SGD(model_params, lr=args.lr_m, momentum=args.momentum, weight_decay=args.weight_decay)
 elif args.optimizer_m == 'Adam':
     optimizer_m = torch.optim.Adam(model_params, lr=args.lr_m, weight_decay=args.weight_decay)
 
-    
-# scheduler for model params
 if args.lr_scheduler_m == "step":
     if args.decay_schedule_m is not None:
         milestones_m = list(map(lambda x: int(x), args.decay_schedule_m.split('-')))
@@ -327,6 +446,45 @@ if args.lr_scheduler_m == "step":
     scheduler_m = torch.optim.lr_scheduler.MultiStepLR(optimizer_m, milestones=milestones_m, gamma=args.gamma)
 elif args.lr_scheduler_m == "cosine":
     scheduler_m = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_m, T_max=args.epochs, eta_min=args.lr_m_end)
+
+
+# optimizer and scheduler for adapter params
+if args.use_adapter_s and args.use_adapter_t:
+    if args.optimizer_a == 'SGD':
+        optimizer_a_s = torch.optim.SGD(adapter_params_s, lr=args.lr_a, momentum=args.momentum, weight_decay=args.weight_decay)
+        optimizer_a_t = torch.optim.SGD(adapter_params_t, lr=args.lr_a, momentum=args.momentum, weight_decay=args.weight_decay)
+    elif args.optimizer_a == 'Adam':
+        optimizer_a_s = torch.optim.Adam(adapter_params_s, lr=args.lr_a, weight_decay=args.weight_decay)
+        optimizer_a_t = torch.optim.Adam(adapter_params_t, lr=args.lr_a, weight_decay=args.weight_decay)
+
+    if args.lr_scheduler_a == "step":
+        if args.decay_schedule_a is not None:
+            milestones_a = list(map(lambda x: int(x), args.decay_schedule_a.split('-')))
+        else:
+            milestones_a = [args.epochs+1]
+        scheduler_a_s = torch.optim.lr_scheduler.MultiStepLR(optimizer_a_s, milestones=milestones_a, gamma=args.gamma)
+        scheduler_a_t = torch.optim.lr_scheduler.MultiStepLR(optimizer_a_t, milestones=milestones_a, gamma=args.gamma)
+    elif args.lr_scheduler_a == "cosine":
+        scheduler_a_s = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_a_s, T_max=args.epochs, eta_min=args.lr_a_end)
+        scheduler_a_t = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_a_t, T_max=args.epochs, eta_min=args.lr_a_end)
+
+
+# optimizer and scheduler for last conv layer params
+if args.train_last_conv:
+    if args.optimizer_c == 'SGD':
+        optimizer_c = torch.optim.SGD(last_conv_params_t, lr=args.lr_c, momentum=args.momentum, weight_decay=args.weight_decay)
+    elif args.optimizer_c == 'Adam':
+        optimizer_c = torch.optim.Adam(last_conv_params_t, lr=args.lr_c, weight_decay=args.weight_decay)
+
+    if args.lr_scheduler_c == "step":
+        if args.decay_schedule_c is not None:
+            milestones_c = list(map(lambda x: int(x), args.decay_schedule_c.split('-')))
+        else:
+            milestones_c = [args.epochs+1]
+        scheduler_c = torch.optim.lr_scheduler.MultiStepLR(optimizer_c, milestones=milestones_c, gamma=args.gamma)
+    elif args.lr_scheduler_c == "cosine":
+        scheduler_c = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_c, T_max=args.epochs, eta_min=args.lr_c_end)
+
 
 
 # for distillation
@@ -398,6 +556,13 @@ for ep in range(args.epochs):
         optimizer_m.zero_grad()
         if define_quantizer_scheduler:
             optimizer_q.zero_grad()
+
+        if args.use_adapter_s and args.use_adapter_t:
+            optimizer_a_s.zero_grad()
+            optimizer_a_t.zero_grad()
+        
+        if args.train_last_conv:
+            optimizer_c.zero_grad()
             
         if args.quan_method == "EWGS":
             save_dict = {"iteration": total_iter, "writer": writer, "layer_num": None, "block_num": None, "conv_num": None, "type": None}
@@ -416,15 +581,9 @@ for ep in range(args.epochs):
             preact = False
             if args.distill in ['abound']:
                 preact = True
-
-            if args.use_student_quant_params:
-                feat_s, block_out_s, logit_s, quant_params, fd_map_s = model_s(images, save_dict, lambda_dict, is_feat=True, preact=preact, flatGroupOut=flatGroupOut)
-            else: 
-                feat_s, block_out_s, logit_s = model_s(images, save_dict, lambda_dict, is_feat=True, preact=preact, flatGroupOut=flatGroupOut)
-
-            with torch.no_grad():
-                feat_t, block_out_t, logit_t , _, _= model_t(images, is_feat=True, preact=preact, flatGroupOut=flatGroupOut, quant_params=quant_params)
-                feat_t = [f.detach() for f in feat_t]
+            feat_s, block_out_s, logit_s, quant_params, fd_map_s = model_s(images, save_dict, lambda_dict, is_feat=True, preact=preact, flatGroupOut=flatGroupOut)
+            feat_t, block_out_t, logit_t , fd_map_t = model_t(images, is_feat=True, preact=preact, flatGroupOut=flatGroupOut, quant_params=quant_params)
+            feat_t = [f.detach() for f in feat_t]
         else:
             pred = model(images, save_dict, lambda_dict)
         
@@ -437,26 +596,24 @@ for ep in range(args.epochs):
                 loss_kd_crd, loss_kd_crdSt = utils_distill.get_loss_crdst(args, feat_s, feat_t, criterion_kd, index, contrast_idx, block_out_s, block_out_t)
                 loss_total = args.kd_gamma * loss_cls + args.kd_alpha * loss_div + args.kd_beta * loss_kd_crd + args.kd_theta * loss_kd_crdSt 
             else: 
-                criterion_mse = torch.nn.MSELoss()
                 if args.use_student_quant_params:
-                    loss_mse = criterion_mse(fd_map_s, feat_t[-2])
-                    loss_total = args.kd_gamma * loss_div + (1-args.kd_gamma) * loss_mse # SQAFD Loss
+                    loss_kd = criterion_kd(fd_map_s, fd_map_t) # MSE
+                    loss_total = args.kd_gamma * loss_div + args.kd_alpha * loss_kd # SQAFD Loss
                 else:
-                    loss_mse = criterion_mse(feat_s[-1], feat_t[-1])
-                    loss_total = args.kd_gamma * loss_cls + (1-args.kd_gamma) * loss_mse # QFD Loss
+                    loss_kd = criterion_kd(feat_s[-1], feat_t[-1])
+                    loss_total = args.kd_gamma * loss_cls + (1-args.kd_gamma) * loss_kd # QFD Loss
                 
                 # track loss
                 loss_cls_value = loss_cls.item()
-                # loss_kd_value = loss_kd.item()
+                loss_kd_value = loss_kd.item()
                 loss_div_value = loss_div.item()
-                loss_mse_value = loss_mse.item()
                 loss_total_value = loss_total.item()
                 writer.add_scalar('train/loss_cls', loss_cls_value, total_iter)
-                writer.add_scalar('train/loss_mse', loss_mse_value, total_iter)
+                writer.add_scalar('train/loss_kd', loss_kd_value, total_iter)
                 writer.add_scalar('train/loss_div', loss_div_value, total_iter)
                 writer.add_scalar('train/loss_total', loss_total_value, total_iter)
                 
-                content = f"total_iter={total_iter}, loss_cls={loss_cls_value}, loss_mse={loss_mse_value}, loss_div={loss_div_value} , loss_total={loss_total_value}"
+                content = f"total_iter={total_iter}, loss_cls={loss_cls_value}, loss_kd={loss_kd_value}, loss_div={loss_div_value} , loss_total={loss_total_value}"
                 with open(os.path.join(args.log_dir,'loss.txt'), "a") as w:
                     w.write(f"{content}\n")
             if i == 0:
@@ -472,6 +629,13 @@ for ep in range(args.epochs):
         if define_quantizer_scheduler:
             optimizer_q.step()
 
+        if args.use_adapter_s and args.use_adapter_t:
+            optimizer_a_s.step()
+            optimizer_a_t.step()
+        
+        if args.train_last_conv:
+            optimizer_c.step()
+
 
         writer.add_scalar('train/loss', loss.item(), total_iter)
         total_iter += 1
@@ -480,6 +644,13 @@ for ep in range(args.epochs):
     scheduler_m.step()
     if define_quantizer_scheduler:
         scheduler_q.step()
+    
+    if args.use_adapter_s and args.use_adapter_t:
+        scheduler_a_s.step()
+        scheduler_a_t.step()
+    
+    if args.train_last_conv:
+        scheduler_c.step()
 
     with torch.no_grad():
         model.eval()
