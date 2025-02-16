@@ -123,7 +123,7 @@ then
                     --load_pretrain True \
                     --pretrain_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
                     --distill 'fd' \
-                    --teacher_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
+                    --teacher_path './results/CIFAR10_ResNet20/Qfeature_1bits_EWGS/checkpoint/best_checkpoint.pth' \
                     --teacher_arch 'resnet20_fp' \
                     --TFeatureOder 'FQA' \
                     --train_mode 'student' \
@@ -149,7 +149,7 @@ then
                     --load_pretrain True \
                     --pretrain_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
                     --distill 'fd' \
-                    --teacher_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
+                    --teacher_path './results/CIFAR10_ResNet20/Qfeature_2bits_EWGS/checkpoint/best_checkpoint.pth' \
                     --teacher_arch 'resnet20_fp' \
                     --TFeatureOder 'FQA' \
                     --train_mode 'student' \
@@ -175,7 +175,7 @@ then
                     --load_pretrain True \
                     --pretrain_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
                     --distill 'fd' \
-                    --teacher_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
+                    --teacher_path './results/CIFAR10_ResNet20/Qfeature_4bits_EWGS/checkpoint/best_checkpoint.pth'\
                     --teacher_arch 'resnet20_fp' \
                     --TFeatureOder 'FQA' \
                     --train_mode 'student' \

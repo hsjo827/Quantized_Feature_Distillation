@@ -190,8 +190,6 @@ class ResNet(nn.Module):
             out = self.feature_quantizer(f3, save_dict)
 
         
-
-
         out = F.avg_pool2d(out, out.size()[3])
         out = out.view(out.size(0), -1)
         f4 = out
@@ -217,9 +215,9 @@ class ResNet(nn.Module):
             if preact:
                 raise NotImplementedError(f"{preact} is not implemented")
             else: 
-                if hasattr(self, 'feature_quantizer'):
+                if hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
                     return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, fd_map_t
-                elif not hasattr(self, 'feature_quantizer'):
+                elif not hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
                     return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, quant_params, fd_map_s
                 else:
                     return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out
@@ -286,7 +284,7 @@ if __name__ == "__main__":
     parser.add_argument('--quan_method', type=str, default='EWGS', choices=['PACT', 'EWGS', 'LSQ'], help='training with different quantization methods')
     parser.add_argument('--QWeightFlag', type=str2bool, default=True, help='do weight quantization')
     parser.add_argument('--QActFlag', type=str2bool, default=True, help='do activation quantization')
-    parser.add_argument('--train_mode', type=str, default='Teacher', choices=['fp', 'teacher', 'student'], help='Teacher or Student')
+    parser.add_argument('--train_mode', type=str, default='teacher', choices=['fp', 'teacher', 'student'], help='Teacher or Student')
     parser.add_argument('--weight_levels', type=int, default=2, help='number of weight quantization levels')
     parser.add_argument('--act_levels', type=int, default=2, help='number of activation quantization levels')
     parser.add_argument('--feature_levels', type=int, default=2, help='number of feature quantization levels')

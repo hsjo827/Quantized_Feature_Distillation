@@ -1,4 +1,4 @@
-#!/bin/bash
+    #!/bin/bash
 
 
 ####################################################################################
@@ -27,7 +27,7 @@ echo $METHOD_TYPE
 ### FQA + use studentquant params
 if [ $METHOD_TYPE == "FQA_T1_W1A1_use_student_quant_params/" ]
 then
-    python3 train_quant_with_featureKD.py --gpu_id '0' \
+    python3 train_quant_with_featureKD.py --gpu_id '2' \
                     --dataset 'cifar100'\
                     --arch 'resnet32_quant' \
                     --num_workers 8 \
@@ -59,7 +59,7 @@ then
 
 elif [ $METHOD_TYPE == "FQA_T2_W2A2_use_student_quant_params/" ]
 then
-    python3 train_quant_with_featureKD.py --gpu_id '0' \
+    python3 train_quant_with_featureKD.py --gpu_id '2' \
                     --dataset 'cifar100'\
                     --arch 'resnet32_quant' \
                     --num_workers 8 \
@@ -91,7 +91,7 @@ then
 
 elif [ $METHOD_TYPE == "FQA_T4_W4A4_use_student_quant_params/" ]
 then
-    python3 train_quant_with_featureKD.py --gpu_id '0' \
+    python3 train_quant_with_featureKD.py --gpu_id '2' \
                     --dataset 'cifar100'\
                     --arch 'resnet32_quant' \
                     --num_workers 8 \
@@ -148,7 +148,7 @@ then
                     --load_pretrain True \
                     --pretrain_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
                     --distill 'fd' \
-                    --teacher_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --teacher_path './results/CIFAR100_ResNet32/Qfeature_1bits_EWGS/checkpoint/best_checkpoint.pth' \
                     --teacher_arch 'resnet32_fp' \
                     --train_mode 'student' \
                     --kd_gamma 1 \
@@ -180,7 +180,7 @@ then
                     --load_pretrain True \
                     --pretrain_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
                     --distill 'fd' \
-                    --teacher_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --teacher_path './results/CIFAR100_ResNet32/Qfeature_2bits_EWGS/checkpoint/best_checkpoint.pth' \
                     --teacher_arch 'resnet32_fp' \
                     --train_mode 'student' \
                     --kd_gamma 1 \
@@ -212,7 +212,207 @@ then
                     --load_pretrain True \
                     --pretrain_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
                     --distill 'fd' \
+                    --teacher_path './results/CIFAR100_ResNet32/Qfeature_4bits_EWGS/checkpoint/best_checkpoint.pth' \
+                    --teacher_arch 'resnet32_fp' \
+                    --train_mode 'student' \
+                    --kd_gamma 1 \
+                    --kd_alpha 500\
+                    --epochs 720
+
+### FQA + use student quant params + last conv                    
+elif [ $METHOD_TYPE == "FQA_T1_W1A1_use_student_quant_params_last_conv/" ]
+then
+    python3 train_quant_with_featureKD.py --gpu_id '0' \
+                    --dataset 'cifar100'\
+                    --arch 'resnet32_quant' \
+                    --num_workers 8 \
+                    --batch_size 64 \
+                    --weight_decay 5e-4 \
+                    --lr_m 5e-4 \
+                    --lr_a 5e-4 \
+                    --lr_q 5e-6 \
+                    --lr_c 1e-6 \
+                    --weight_levels 2 \
+                    --act_levels 2 \
+                    --feature_levels 2 \
+                    --baseline False \
+                    --use_hessian True\
+                    --TFeatureOder 'FQA' \
+                    --use_student_quant_params True \
+                    --use_adapter_t True \
+                    --use_adapter_s True \
+                    --train_last_conv True \
+                    --log_dir './results/CIFAR100_ResNet32/'$METHOD_TYPE \
+                    --load_pretrain True \
+                    --pretrain_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --distill 'fd' \
                     --teacher_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --teacher_arch 'resnet32_fp' \
+                    --train_mode 'student' \
+                    --kd_gamma 1 \
+                    --kd_alpha 500\
+                    --epochs 720
+
+elif [ $METHOD_TYPE == "FQA_T2_W2A2_use_student_quant_params_last_conv/" ]
+then
+    python3 train_quant_with_featureKD.py --gpu_id '0' \
+                    --dataset 'cifar100'\
+                    --arch 'resnet32_quant' \
+                    --num_workers 8 \
+                    --batch_size 64 \
+                    --weight_decay 5e-4 \
+                    --lr_m 5e-4 \
+                    --lr_a 5e-4 \
+                    --lr_q 5e-6 \
+                    --lr_c 1e-6 \
+                    --weight_levels 4 \
+                    --act_levels 4 \
+                    --feature_levels 4 \
+                    --baseline False \
+                    --use_hessian True\
+                    --TFeatureOder 'FQA' \
+                    --use_student_quant_params True \
+                    --use_adapter_t True \
+                    --use_adapter_s True \
+                    --train_last_conv True \
+                    --log_dir './results/CIFAR100_ResNet32/'$METHOD_TYPE \
+                    --load_pretrain True \
+                    --pretrain_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --distill 'fd' \
+                    --teacher_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --teacher_arch 'resnet32_fp' \
+                    --train_mode 'student' \
+                    --kd_gamma 1 \
+                    --kd_alpha 500\
+                    --epochs 720
+
+elif [ $METHOD_TYPE == "FQA_T4_W4A4_use_student_quant_params_last_conv/" ]
+then
+    python3 train_quant_with_featureKD.py --gpu_id '0' \
+                    --dataset 'cifar100'\
+                    --arch 'resnet32_quant' \
+                    --num_workers 8 \
+                    --batch_size 64 \
+                    --weight_decay 5e-4 \
+                    --lr_m 5e-4 \
+                    --lr_a 5e-4 \
+                    --lr_q 5e-6 \
+                    --lr_c 1e-6 \
+                    --weight_levels 16 \
+                    --act_levels 16 \
+                    --feature_levels 16 \
+                    --baseline False \
+                    --use_hessian True\
+                    --TFeatureOder 'FQA' \
+                    --use_student_quant_params True \
+                    --use_adapter_t True \
+                    --use_adapter_s True \
+                    --train_last_conv True \
+                    --log_dir './results/CIFAR100_ResNet32/'$METHOD_TYPE \
+                    --load_pretrain True \
+                    --pretrain_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --distill 'fd' \
+                    --teacher_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --teacher_arch 'resnet32_fp' \
+                    --train_mode 'student' \
+                    --kd_gamma 1 \
+                    --kd_alpha 500\
+                    --epochs 720
+
+### FQA + not use student quant params + last conv
+elif [ $METHOD_TYPE == "FQA_T1_W1A1_last_conv/" ]
+then
+    python3 train_quant_with_featureKD.py --gpu_id '1' \
+                    --dataset 'cifar100'\
+                    --arch 'resnet32_quant' \
+                    --num_workers 8 \
+                    --batch_size 64 \
+                    --weight_decay 5e-4 \
+                    --lr_m 5e-4 \
+                    --lr_a 5e-4 \
+                    --lr_q 5e-6 \
+                    --lr_c 1e-6 \
+                    --weight_levels 2 \
+                    --act_levels 2 \
+                    --feature_levels 2 \
+                    --baseline False \
+                    --use_hessian True\
+                    --TFeatureOder 'FQA' \
+                    --use_student_quant_params False \
+                    --use_adapter_t True \
+                    --use_adapter_s True \
+                    --train_last_conv True \
+                    --log_dir './results/CIFAR100_ResNet32/'$METHOD_TYPE \
+                    --load_pretrain True \
+                    --pretrain_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --distill 'fd' \
+                    --teacher_path './results/CIFAR100_ResNet32/Qfeature_1bits_EWGS/checkpoint/best_checkpoint.pth' \
+                    --teacher_arch 'resnet32_fp' \
+                    --train_mode 'student' \
+                    --kd_gamma 1 \
+                    --kd_alpha 500\
+                    --epochs 720
+
+elif [ $METHOD_TYPE == "FQA_T2_W2A2_last_conv/" ]
+then
+    python3 train_quant_with_featureKD.py --gpu_id '1' \
+                    --dataset 'cifar100'\
+                    --arch 'resnet32_quant' \
+                    --num_workers 8 \
+                    --batch_size 64 \
+                    --weight_decay 5e-4 \
+                    --lr_m 5e-4 \
+                    --lr_a 5e-4 \
+                    --lr_q 5e-6 \
+                    --lr_c 1e-6 \
+                    --weight_levels 4 \
+                    --act_levels 4 \
+                    --feature_levels 4 \
+                    --baseline False \
+                    --use_hessian True\
+                    --TFeatureOder 'FQA' \
+                    --use_student_quant_params False \
+                    --use_adapter_t True \
+                    --use_adapter_s True \
+                    --train_last_conv True \
+                    --log_dir './results/CIFAR100_ResNet32/'$METHOD_TYPE \
+                    --load_pretrain True \
+                    --pretrain_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --distill 'fd' \
+                    --teacher_path './results/CIFAR100_ResNet32/Qfeature_2bits_EWGS/checkpoint/best_checkpoint.pth' \
+                    --teacher_arch 'resnet32_fp' \
+                    --train_mode 'student' \
+                    --kd_gamma 1 \
+                    --kd_alpha 500\
+                    --epochs 720
+
+elif [ $METHOD_TYPE == "FQA_T4_W4A4_last_conv/" ]
+then
+    python3 train_quant_with_featureKD.py --gpu_id '1' \
+                    --dataset 'cifar100'\
+                    --arch 'resnet32_quant' \
+                    --num_workers 8 \
+                    --batch_size 64 \
+                    --weight_decay 5e-4 \
+                    --lr_m 5e-4 \
+                    --lr_a 5e-4 \
+                    --lr_q 5e-6 \
+                    --lr_c 1e-6 \
+                    --weight_levels 16 \
+                    --act_levels 16 \
+                    --feature_levels 16 \
+                    --baseline False \
+                    --use_hessian True\
+                    --TFeatureOder 'FQA' \
+                    --use_student_quant_params False \
+                    --use_adapter_t True \
+                    --use_adapter_s True \
+                    --train_last_conv True \
+                    --log_dir './results/CIFAR100_ResNet32/'$METHOD_TYPE \
+                    --load_pretrain True \
+                    --pretrain_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
+                    --distill 'fd' \
+                    --teacher_path './results/CIFAR100_ResNet32/Qfeature_4bits_EWGS/checkpoint/best_checkpoint.pth' \
                     --teacher_arch 'resnet32_fp' \
                     --train_mode 'student' \
                     --kd_gamma 1 \

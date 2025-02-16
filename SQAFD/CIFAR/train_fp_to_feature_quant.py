@@ -270,7 +270,7 @@ for ep in range(args.epochs):
     
     ### update grad scales
     if ep % args.update_every == 0 and ep != 0 and not args.baseline and args.use_hessian:
-        update_grad_scales(model, train_loader, criterion, device, args) 
+        update_grad_scales(model, train_loader, criterion, device, args)
         print("update grade scales")
     
     if define_quantizer_scheduler:

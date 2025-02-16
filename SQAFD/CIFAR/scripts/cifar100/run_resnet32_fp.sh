@@ -39,16 +39,16 @@ then
                     --log_dir '../results/CIFAR100_ResNet32/'$METHOD_TYPE
 
 
-elif [ $METHOD_TYPE == "Qfeature_1bits_EWGS/" ] 
+elif [ $METHOD_TYPE == "Qfeature_1bits_EWGS_5e4/" ] 
 then
-    python3 train_fp_to_feature_quant.py --gpu_id '2' \
+    python3 train_fp_to_feature_quant.py --gpu_id '0' \
                     --dataset 'cifar100' \
                     --arch 'resnet32_fp' \
                     --num_workers 8 \
                     --batch_size 64 \
                     --weight_decay 5e-4 \
-                    --lr_m 5e-2 \
-                    --lr_q 5e-4 \
+                    --lr_m 5e-4 \
+                    --lr_q 5e-6 \
                     --log_dir './results/CIFAR100_ResNet32/'$METHOD_TYPE \
                     --QFeatureFlag True \
                     --train_mode 'teacher' \
@@ -61,16 +61,16 @@ then
                     --epochs 72
 
 
-elif [ $METHOD_TYPE == "Qfeature_2bits_EWGS/" ] 
+elif [ $METHOD_TYPE == "Qfeature_2bits_EWGS_5e4/" ] 
 then
-    python3 train_fp_to_feature_quant.py --gpu_id '2' \
+    python3 train_fp_to_feature_quant.py --gpu_id '0' \
                     --dataset 'cifar100' \
                     --arch 'resnet32_fp' \
                     --num_workers 8 \
                     --batch_size 64 \
                     --weight_decay 5e-4 \
-                    --lr_m 5e-2 \
-                    --lr_q 5e-4 \
+                    --lr_m 5e-4 \
+                    --lr_q 5e-6 \
                     --log_dir './results/CIFAR100_ResNet32/'$METHOD_TYPE \
                     --QFeatureFlag True \
                     --train_mode 'teacher' \
@@ -82,16 +82,16 @@ then
                     --pretrain_path './results/CIFAR100_ResNet32/fp_crd_cosine/checkpoint/best_checkpoint.pth' \
                     --epochs 72
 
-elif [ $METHOD_TYPE == "Qfeature_4bits_EWGS/" ] 
+elif [ $METHOD_TYPE == "Qfeature_4bits_EWGS_5e4/" ] 
 then
-    python3 train_fp_to_feature_quant.py --gpu_id '2' \
+    python3 train_fp_to_feature_quant.py --gpu_id '0' \
                     --dataset 'cifar100' \
                     --arch 'resnet32_fp' \
                     --num_workers 8 \
                     --batch_size 64 \
                     --weight_decay 5e-4 \
-                    --lr_m 5e-2 \
-                    --lr_q 5e-4 \
+                    --lr_m 5e-4 \
+                    --lr_q 5e-6 \
                     --log_dir './results/CIFAR100_ResNet32/'$METHOD_TYPE \
                     --QFeatureFlag True \
                     --train_mode 'teacher' \

@@ -103,7 +103,7 @@ then
 ### AFQ + not use_student_quant_params 
 elif [ $METHOD_TYPE == "AFQ_T1_W1A1/" ] 
 then
-    python3 train_quant_with_featureKD.py --gpu_id '0' \
+    python3 train_quant_with_featureKD.py --gpu_id '1' \
                     --arch 'resnet20_quant' \
                     --optimizer_m 'Adam' \
                     --optimizer_q 'Adam'\
@@ -120,16 +120,16 @@ then
                     --load_pretrain True \
                     --pretrain_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
                     --distill 'fd' \
-                    --teacher_path './results/CIFAR10_ResNet20/Teacher_Quant/T1bit_EWGS/best_checkpoint.pth' \
+                    --teacher_path './results/CIFAR10_ResNet20/Qfeature_1bits_EWGS/checkpoint/best_checkpoint.pth' \
                     --teacher_arch 'resnet20_fp' \
                     --train_mode 'student' \
                     --kd_gamma 1 \
                     --kd_alpha 500 \
                     --epochs 1200
 
-elif [ $METHOD_TYPE == "AFQ_T2_W2A2" ] 
+elif [ $METHOD_TYPE == "AFQ_T2_W2A2/" ] 
 then
-    python3 train_quant_with_featureKD.py --gpu_id '0' \
+    python3 train_quant_with_featureKD.py --gpu_id '1' \
                     --arch 'resnet20_quant' \
                     --optimizer_m 'Adam' \
                     --optimizer_q 'Adam'\
@@ -146,7 +146,7 @@ then
                     --load_pretrain True \
                     --pretrain_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
                     --distill 'fd' \
-                    --teacher_path './results/CIFAR10_ResNet20/Teacher_Quant/T1bit_EWGS/best_checkpoint.pth' \
+                    --teacher_path './results/CIFAR10_ResNet20/Qfeature_2bits_EWGS/checkpoint/best_checkpoint.pth' \
                     --teacher_arch 'resnet20_fp' \
                     --train_mode 'student' \
                     --kd_gamma 1 \
@@ -155,7 +155,7 @@ then
 
 elif [ $METHOD_TYPE == "AFQ_T4_W4A4/" ] 
 then
-    python3 train_quant_with_featureKD.py --gpu_id '0' \
+    python3 train_quant_with_featureKD.py --gpu_id '1' \
                     --arch 'resnet20_quant' \
                     --optimizer_m 'Adam' \
                     --optimizer_q 'Adam'\
@@ -172,7 +172,7 @@ then
                     --load_pretrain True \
                     --pretrain_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
                     --distill 'fd' \
-                    --teacher_path './results/CIFAR10_ResNet20/Teacher_Quant/T1bit_EWGS/best_checkpoint.pth' \
+                    --teacher_path './results/CIFAR10_ResNet20/Qfeature_4bits_EWGS/checkpoint/best_checkpoint.pth' \
                     --teacher_arch 'resnet20_fp' \
                     --train_mode 'student' \
                     --kd_gamma 1 \

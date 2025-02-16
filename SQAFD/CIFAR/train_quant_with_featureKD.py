@@ -414,22 +414,6 @@ if args.distill:
         
     num_training_data = len(train_dataset)
     module_list, model_params, criterion_list = utils_distill.define_distill_module_and_loss(model, model_t, model_params_s, args, num_training_data, train_loader)
-    
-# optimizer and scheduler for quantizer params
-if define_quantizer_scheduler:
-    if args.optimizer_q == 'SGD':
-        optimizer_q = torch.optim.SGD(quant_params_s, lr=args.lr_q)
-    elif args.optimizer_q == 'Adam':
-        optimizer_q = torch.optim.Adam(quant_params_s, lr=args.lr_q)
-
-    if args.lr_scheduler_q == "step":
-        if args.decay_schedule_q is not None:
-            milestones_q = list(map(lambda x: int(x), args.decay_schedule_q.split('-')))
-        else:
-            milestones_q = [args.epochs+1]
-        scheduler_q = torch.optim.lr_scheduler.MultiStepLR(optimizer_q, milestones=milestones_q, gamma=args.gamma)
-    elif args.lr_scheduler_q == "cosine":
-        scheduler_q = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_q, T_max=args.epochs, eta_min=args.lr_q_end)
 
 
 # optimizer and scheduler for model params
@@ -446,6 +430,23 @@ if args.lr_scheduler_m == "step":
     scheduler_m = torch.optim.lr_scheduler.MultiStepLR(optimizer_m, milestones=milestones_m, gamma=args.gamma)
 elif args.lr_scheduler_m == "cosine":
     scheduler_m = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_m, T_max=args.epochs, eta_min=args.lr_m_end)
+
+
+# optimizer and scheduler for quantizer params
+if define_quantizer_scheduler:
+    if args.optimizer_q == 'SGD':
+        optimizer_q = torch.optim.SGD(quant_params_s, lr=args.lr_q)
+    elif args.optimizer_q == 'Adam':
+        optimizer_q = torch.optim.Adam(quant_params_s, lr=args.lr_q)
+
+    if args.lr_scheduler_q == "step":
+        if args.decay_schedule_q is not None:
+            milestones_q = list(map(lambda x: int(x), args.decay_schedule_q.split('-')))
+        else:
+            milestones_q = [args.epochs+1]
+        scheduler_q = torch.optim.lr_scheduler.MultiStepLR(optimizer_q, milestones=milestones_q, gamma=args.gamma)
+    elif args.lr_scheduler_q == "cosine":
+        scheduler_q = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_q, T_max=args.epochs, eta_min=args.lr_q_end)
 
 
 # optimizer and scheduler for adapter params
@@ -596,12 +597,9 @@ for ep in range(args.epochs):
                 loss_kd_crd, loss_kd_crdSt = utils_distill.get_loss_crdst(args, feat_s, feat_t, criterion_kd, index, contrast_idx, block_out_s, block_out_t)
                 loss_total = args.kd_gamma * loss_cls + args.kd_alpha * loss_div + args.kd_beta * loss_kd_crd + args.kd_theta * loss_kd_crdSt 
             else: 
-                if args.use_student_quant_params:
-                    loss_kd = criterion_kd(fd_map_s, fd_map_t) # MSE
-                    loss_total = args.kd_gamma * loss_div + args.kd_alpha * loss_kd # SQAFD Loss
-                else:
-                    loss_kd = criterion_kd(feat_s[-1], feat_t[-1])
-                    loss_total = args.kd_gamma * loss_cls + (1-args.kd_gamma) * loss_kd # QFD Loss
+                loss_kd = criterion_kd(fd_map_s, fd_map_t) # MSE
+                loss_total = args.kd_gamma * loss_div + args.kd_alpha * loss_kd # SQAFD Loss
+                
                 
                 # track loss
                 loss_cls_value = loss_cls.item()
