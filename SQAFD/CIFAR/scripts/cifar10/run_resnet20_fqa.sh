@@ -25,7 +25,7 @@ echo $METHOD_TYPE
 
 
 ### FQA + use studentquant params
-if [ $METHOD_TYPE == "FQA_T1_W1A1_use_student_quant_params/" ]
+if [ $METHOD_TYPE == "FQA_1bit/" ]
 then
     python3 train_quant_with_featureKD.py --gpu_id '0' \
                     --arch 'resnet20_quant' \
@@ -51,7 +51,7 @@ then
                     --kd_alpha 500 \
                     --epochs 1200
 
-elif [ $METHOD_TYPE == "FQA_T2_W2A2_use_student_quant_params/" ]
+elif [ $METHOD_TYPE == "FQA_2bit/" ]
 then
     python3 train_quant_with_featureKD.py --gpu_id '0' \
                     --arch 'resnet20_quant' \
@@ -77,7 +77,7 @@ then
                     --kd_alpha 500 \
                     --epochs 1200
 
-elif [ $METHOD_TYPE == "FQA_T4_W4A4_use_student_quant_params/" ]
+elif [ $METHOD_TYPE == "FQA_4bit/" ]
 then
     python3 train_quant_with_featureKD.py --gpu_id '0' \
                     --arch 'resnet20_quant' \
@@ -103,85 +103,6 @@ then
                     --kd_alpha 500 \
                     --epochs 1200
 
-
-### FQA + not use student quant params
-elif [ $METHOD_TYPE == "FQA_T1_W1A1/" ]
-then
-    python3 train_quant_with_featureKD.py --gpu_id '0' \
-                    --arch 'resnet20_quant' \
-                    --optimizer_m 'Adam' \
-                    --optimizer_q 'Adam'\
-                    --weight_levels 2 \
-                    --act_levels 2 \
-                    --feature_levels 2 \
-                    --baseline False \
-                    --use_hessian True\
-                    --use_student_quant_params False \
-                    --use_adapter_t True \
-                    --use_adapter_s True \
-                    --log_dir './results/CIFAR10_ResNet20/'$METHOD_TYPE \
-                    --load_pretrain True \
-                    --pretrain_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
-                    --distill 'fd' \
-                    --teacher_path './results/CIFAR10_ResNet20/Qfeature_1bits_EWGS/checkpoint/best_checkpoint.pth' \
-                    --teacher_arch 'resnet20_fp' \
-                    --TFeatureOder 'FQA' \
-                    --train_mode 'student' \
-                    --kd_gamma 1 \
-                    --kd_alpha 500 \
-                    --epochs 1200
-
-elif [ $METHOD_TYPE == "FQA_T2_W2A2/" ]
-then
-    python3 train_quant_with_featureKD.py --gpu_id '0' \
-                    --arch 'resnet20_quant' \
-                    --optimizer_m 'Adam' \
-                    --optimizer_q 'Adam'\
-                    --weight_levels 4 \
-                    --act_levels 4 \
-                    --feature_levels 4 \
-                    --baseline False \
-                    --use_hessian True\
-                    --use_student_quant_params False \
-                    --use_adapter_t True \
-                    --use_adapter_s True \
-                    --log_dir './results/CIFAR10_ResNet20/'$METHOD_TYPE \
-                    --load_pretrain True \
-                    --pretrain_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
-                    --distill 'fd' \
-                    --teacher_path './results/CIFAR10_ResNet20/Qfeature_2bits_EWGS/checkpoint/best_checkpoint.pth' \
-                    --teacher_arch 'resnet20_fp' \
-                    --TFeatureOder 'FQA' \
-                    --train_mode 'student' \
-                    --kd_gamma 1 \
-                    --kd_alpha 500 \
-                    --epochs 1200
-
-elif [ $METHOD_TYPE == "FQA_T4_W4A4/" ]
-then
-    python3 train_quant_with_featureKD.py --gpu_id '0' \
-                    --arch 'resnet20_quant' \
-                    --optimizer_m 'Adam' \
-                    --optimizer_q 'Adam'\
-                    --weight_levels 16 \
-                    --act_levels 16 \
-                    --feature_levels 16 \
-                    --baseline False \
-                    --use_hessian True\
-                    --use_student_quant_params False \
-                    --use_adapter_t True \
-                    --use_adapter_s True \
-                    --log_dir './results/CIFAR10_ResNet20/'$METHOD_TYPE \
-                    --load_pretrain True \
-                    --pretrain_path './results/CIFAR10_ResNet20/fp/checkpoint/best_checkpoint.pth' \
-                    --distill 'fd' \
-                    --teacher_path './results/CIFAR10_ResNet20/Qfeature_4bits_EWGS/checkpoint/best_checkpoint.pth'\
-                    --teacher_arch 'resnet20_fp' \
-                    --TFeatureOder 'FQA' \
-                    --train_mode 'student' \
-                    --kd_gamma 1 \
-                    --kd_alpha 500 \
-                    --epochs 1200
 fi
 
 
