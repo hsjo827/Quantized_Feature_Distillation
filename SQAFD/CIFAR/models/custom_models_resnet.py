@@ -32,7 +32,6 @@ class MySequential(nn.Sequential):
             block_num += 1
         return x
 
-
 class ResNet(nn.Module):
     def __init__(self, block, num_blocks, args):
         super(ResNet, self).__init__()
@@ -74,7 +73,6 @@ class ResNet(nn.Module):
             
         self.apply(_weights_init)
 
-
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
         layers = []
@@ -83,8 +81,27 @@ class ResNet(nn.Module):
             self.in_planes = planes * block.expansion
 
         return MySequential(*layers)
-    
 
+    def transform_feature_map(self, feat_map, transform_type):
+        channel_sum = torch.sum(feat_map, dim=1, keepdim=True)
+        
+        if transform_type == 'binary_01':
+            return (channel_sum > 0).float()
+            
+        elif transform_type == 'binary_0p':
+            return F.relu(channel_sum)
+        
+        elif transform_type == 'binary_pm':
+            return channel_sum
+
+    def get_transformed_feature_maps(self, x, teacher_transform=None, student_transform=None):
+        lst_block = self.layer3[-1]
+        feat_map = lst_block.pre_relu_feat
+        transform = student_transform if isinstance(lst_block, QBasicBlock) else teacher_transform
+        heatmap = self.transform_feature_map(feat_map, transform) if transform else None
+        
+        return heatmap
+    
     def get_feat_modules(self):
         feat_m = nn.ModuleList([])
         feat_m.append(self.conv1)
@@ -129,65 +146,74 @@ class ResNet(nn.Module):
         out = self.layer3(out, save_dict, lambda_dict)
         f3 = out
 
-        if self.args.train_mode == 'student' and not hasattr(self, 'feature_quantizer') and self.args.use_student_quant_params:
-            last_block = self.layer3[-1]  
-            if isinstance(last_block, QBasicBlock): 
-                last_conv = last_block.conv2 
-                if isinstance(last_conv, QConv):
-                    quant_params = {
-                        "lA": last_conv.lA.item() if hasattr(last_conv, 'lA') else None,
-                        "uA": last_conv.uA.item() if hasattr(last_conv, 'uA') else None,
-                        "output_scale": last_conv.output_scale.item() if hasattr(last_conv, 'output_scale') else None
-                    }
-        
-        
-        # Teacher Architecture
-        if hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
-            # use student quantizer parameter and adapter
-            if self.args.use_student_quant_params and self.args.use_adapter_t:
-                if self.args.TFeatureOder == 'FQA':
+        # Heatmap Distillation (Feature Quantizer X, Adapter X)
+        heatmap = None
+        if self.args.use_heatmap_distillation:
+            heatmap = self.get_transformed_feature_maps(
+                        x, 
+                        teacher_transform = self.args.transform_type_t,
+                        student_transform = self.args.transform_type_s
+                    )
+
+        else:
+            if self.args.train_mode == 'student' and not hasattr(self, 'feature_quantizer') and self.args.use_student_quant_params:
+                last_block = self.layer3[-1]  
+                if isinstance(last_block, QBasicBlock): 
+                    last_conv = last_block.conv2 
+                    if isinstance(last_conv, QConv):
+                        quant_params = {
+                            "lA": last_conv.lA.item() if hasattr(last_conv, 'lA') else None,
+                            "uA": last_conv.uA.item() if hasattr(last_conv, 'uA') else None,
+                            "output_scale": last_conv.output_scale.item() if hasattr(last_conv, 'output_scale') else None
+                        }
+            
+            # Teacher Architecture
+            if hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
+                # use student quantizer parameter and adapter
+                if self.args.use_student_quant_params and self.args.use_adapter_t:
+                    if self.args.TFeatureOder == 'FQA':
+                        fd_map_t = self.feature_quantizer(f3, save_dict, quant_params)
+                        fd_map_t = self.adapter(fd_map_t)
+                    elif self.args.TFeatureOder == 'AFQ':
+                        fd_map_t = self.adapter(f3)
+                        fd_map_t = self.feature_quantizer(fd_map_t, save_dict, quant_params)
+
+                # use QFD method quantizer parameter and adapter
+                elif not self.args.use_student_quant_params and self.args.use_adapter_t:
+                    if self.args.TFeatureOder == 'FQA':
+                        fd_map_t = self.feature_quantizer(f3, save_dict)
+                        fd_map_t = self.adapter(fd_map_t)
+                    elif self.args.TFeatureOder == 'AFQ':
+                        fd_map_t = self.adapter(f3)
+                        fd_map_t = self.feature_quantizer(fd_map_t, save_dict)
+
+                # use student quantizer parameter
+                elif self.args.use_student_quant_params and not self.args.use_adapter_t:
                     fd_map_t = self.feature_quantizer(f3, save_dict, quant_params)
-                    fd_map_t = self.adapter(fd_map_t)
-                elif self.args.TFeatureOder == 'AFQ':
-                    fd_map_t = self.adapter(f3)
-                    fd_map_t = self.feature_quantizer(fd_map_t, save_dict, quant_params)
+                    if self.args.use_map_norm:
+                        fd_map_t = F.normalize(fd_map_t, p=2, dim=1, eps=1e-5)
 
-            # use QFD method quantizer parameter and adapter
-            elif not self.args.use_student_quant_params and self.args.use_adapter_t:
-                if self.args.TFeatureOder == 'FQA':
+                # use QFD method quantizer parameter
+                elif not self.args.use_student_quant_params and not self.args.use_adapter_t:
                     fd_map_t = self.feature_quantizer(f3, save_dict)
-                    fd_map_t = self.adapter(fd_map_t)
-                elif self.args.TFeatureOder == 'AFQ':
-                    fd_map_t = self.adapter(f3)
-                    fd_map_t = self.feature_quantizer(fd_map_t, save_dict)
+                    if self.args.use_map_norm:
+                        fd_map_t = F.normalize(fd_map_t, p=2, dim=1, eps=1e-5)
+            
 
-            # use student quantizer parameter
-            elif self.args.use_student_quant_params and not self.args.use_adapter_t:
-                fd_map_t = self.feature_quantizer(f3, save_dict, quant_params)
-                if self.args.use_map_norm:
-                    fd_map_t = F.normalize(fd_map_t, p=2, dim=1, eps=1e-5)
+            # Student Architecture
+            elif not hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
+                if self.args.use_adapter_s:
+                    fd_map_s = self.adapter(f3)
 
-            # use QFD method quantizer parameter
-            elif not self.args.use_student_quant_params and not self.args.use_adapter_t:
-                fd_map_t = self.feature_quantizer(f3, save_dict)
-                if self.args.use_map_norm:
-                    fd_map_t = F.normalize(fd_map_t, p=2, dim=1, eps=1e-5)
-        
+                else:
+                    fd_map_s = f3
+                    if self.args.use_map_norm:
+                        fd_map_s = F.normalize(fd_map_s, p=2, dim=1, eps=1e-5)
 
-        # Student Architecture
-        elif not hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
-            if self.args.use_adapter_s:
-                fd_map_s = self.adapter(f3)
-
-            else:
-                fd_map_s = f3
-                if self.args.use_map_norm:
-                    fd_map_s = F.normalize(fd_map_s, p=2, dim=1, eps=1e-5)
-
-        
-        # train teacher feature quantizer by QFD method
-        elif hasattr(self, 'feature_quantizer') and self.args.train_mode == 'teacher':
-            out = self.feature_quantizer(f3, save_dict)
+            
+            # train teacher feature quantizer by QFD method
+            elif hasattr(self, 'feature_quantizer') and self.args.train_mode == 'teacher':
+                out = self.feature_quantizer(f3, save_dict)
 
         
         out = F.avg_pool2d(out, out.size()[3])
@@ -215,12 +241,15 @@ class ResNet(nn.Module):
             if preact:
                 raise NotImplementedError(f"{preact} is not implemented")
             else: 
-                if hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
-                    return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, fd_map_t
-                elif not hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
-                    return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, quant_params, fd_map_s
-                else:
-                    return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out
+                if self.args.use_heatmap_distillation :
+                    return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, heatmap
+                else :
+                    if hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
+                        return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, fd_map_t
+                    elif not hasattr(self, 'feature_quantizer') and self.args.train_mode == 'student':
+                        return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out, quant_params, fd_map_s
+                    else:
+                        return [f0, f1, f2, f3, f4], [block_out1, block_out2, block_out3], out
         else:
             return out
 
@@ -297,6 +326,10 @@ if __name__ == "__main__":
     parser.add_argument('--use_student_quant_params', type=str2bool, default=False, help='Enable the use of student quantization parameters during teacher quantization')
     parser.add_argument('--use_adapter_t', type=str2bool, default=False, help='Enable the use of adapter(connector) for Teacher')
     parser.add_argument('--use_adapter_s', type=str2bool, default=False, help='Enable the use of adapter(connector) for Student')
+    parser.add_argument('--transform_type_t', type=str, default='binary_01', choices=['binary_01', 'binary_0p', 'binary_pm'], help='Teacher Heatmap')
+    parser.add_argument('--transform_type_s', type=str, default='binary_01', choices=['binary_01', 'binary_0p', 'binary_pm'], help='Student Heatmap')
+    parser.add_argument('--use_heatmap_distillation', type=str2bool, default=False, help='Enable Heatmap Distillation')
+
     args = parser.parse_args()
     args.num_classes = 10
 

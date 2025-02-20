@@ -27,8 +27,13 @@ def define_distill_module_and_loss(model_s, model_t, model_params, args, n_data,
     model_t.eval()
     model_s.eval()
 
-    feat_s, block_out_s, logit_s, quant_params, fd_map_s = model_s(data, is_feat=True,flatGroupOut=flatGroupOut)
-    feat_t, block_out_t, logit_t , fd_map_t = model_t(data, is_feat=True, flatGroupOut=flatGroupOut, quant_params=quant_params)
+    if args.use_heatmap_distillation:
+        feat_s, block_out_s, logit_s, heatmap_s = model_s(data, is_feat=True,flatGroupOut=flatGroupOut)
+        feat_t, block_out_t, logit_t , heatmap_t = model_t(data, is_feat=True,flatGroupOut=flatGroupOut)
+    else:
+        feat_s, block_out_s, logit_s, quant_params, fd_map_s = model_s(data, is_feat=True,flatGroupOut=flatGroupOut)
+        feat_t, block_out_t, logit_t , fd_map_t = model_t(data, is_feat=True, flatGroupOut=flatGroupOut, quant_params=quant_params)
+
 
     module_list = nn.ModuleList([])
     module_list.append(model_s)

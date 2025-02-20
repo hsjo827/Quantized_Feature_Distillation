@@ -100,6 +100,11 @@ parser.add_argument('--use_adapter_s', type=str2bool, default=False, help='Enabl
 parser.add_argument('--use_adapter_t', type=str2bool, default=False, help='Enable the use of adapter(connector) for Teacher') 
 parser.add_argument('--use_map_norm', type=str2bool, default=False, help='Enable the use of feature normalization')
 
+# arguments for heatmap distillation
+parser.add_argument('--transform_type_t', type=str, default='binary_01', choices=['binary_01', 'binary_0p', 'binary_pm'], help='Teacher Heatmap')
+parser.add_argument('--transform_type_s', type=str, default='binary_01', choices=['binary_01', 'binary_0p', 'binary_pm'], help='Student Heatmap')
+parser.add_argument('--use_heatmap_distillation', type=str2bool, default=False, help='Enable Heatmap Distillation')
+
 
 # logging and misc
 parser.add_argument('--gpu_id', type=str, default='0', help='target GPU to use')
@@ -322,11 +327,15 @@ else:
 
 
 if args.distill:
-    args.QFeatureFlag = True
+    if not args.use_heatmap_distillation: 
+        args.QFeatureFlag = True
+    
     model_class_t = globals().get(args.teacher_arch)
     model_t = model_class_t(args)
     model_t.to(device)
-    args.QFeatureFlag = False
+
+    if not args.use_heatmap_distillation:  
+        args.QFeatureFlag = False
 
     trainable_params_t = list(model_t.parameters())
     model_params_t = []
@@ -582,8 +591,14 @@ for ep in range(args.epochs):
             preact = False
             if args.distill in ['abound']:
                 preact = True
-            feat_s, block_out_s, logit_s, quant_params, fd_map_s = model_s(images, save_dict, lambda_dict, is_feat=True, preact=preact, flatGroupOut=flatGroupOut)
-            feat_t, block_out_t, logit_t , fd_map_t = model_t(images, is_feat=True, preact=preact, flatGroupOut=flatGroupOut, quant_params=quant_params)
+            
+            if args.use_heatmap_distillation:
+                feat_s, block_out_s, logit_s, heatmap_s = model_s(images, save_dict, lambda_dict, is_feat=True, preact=preact, flatGroupOut=flatGroupOut)
+                feat_t, block_out_t, logit_t , heatmap_t = model_t(images, is_feat=True, preact=preact, flatGroupOut=flatGroupOut)
+            else:
+                feat_s, block_out_s, logit_s, quant_params, fd_map_s = model_s(images, save_dict, lambda_dict, is_feat=True, preact=preact, flatGroupOut=flatGroupOut)
+                feat_t, block_out_t, logit_t , fd_map_t = model_t(images, is_feat=True, preact=preact, flatGroupOut=flatGroupOut, quant_params=quant_params)
+
             feat_t = [f.detach() for f in feat_t]
         else:
             pred = model(images, save_dict, lambda_dict)
@@ -597,7 +612,11 @@ for ep in range(args.epochs):
                 loss_kd_crd, loss_kd_crdSt = utils_distill.get_loss_crdst(args, feat_s, feat_t, criterion_kd, index, contrast_idx, block_out_s, block_out_t)
                 loss_total = args.kd_gamma * loss_cls + args.kd_alpha * loss_div + args.kd_beta * loss_kd_crd + args.kd_theta * loss_kd_crdSt 
             else: 
-                loss_kd = criterion_kd(fd_map_s, fd_map_t) # MSE
+                if args.use_heatmap_distillation:
+                    loss_kd = criterion_kd(heatmap_s, heatmap_t) # MSE
+                else:
+                    loss_kd = criterion_kd(fd_map_s, fd_map_t) # MSE
+                    
                 loss_total = args.kd_gamma * loss_div + args.kd_alpha * loss_kd # SQAFD Loss
                 
                 
