@@ -45,7 +45,7 @@ class BasicBlock(nn.Module):
         act_conv2 = out 
         out = self.bn2(self.conv2(out))
 
-        self.pre_relu_feat = out.clone()
+        self.pre_relu_feat = out.detach().clone()
 
         out += self.shortcut(x)
         out = F.relu(out)
@@ -92,7 +92,7 @@ class QBasicBlock(nn.Module):
             save_dict["conv_num"] = 2
         out = self.bn2(self.conv2(out, save_dict, lambda_dict)) 
 
-        self.pre_relu_feat = out.clone()
+        self.pre_relu_feat = out.detach().clone()
         
         out += self.shortcut(x)
         out = F.relu(out)
