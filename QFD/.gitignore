@@ -1,0 +1,7 @@
+CIFAR/__pycache__/
+CIFAR/crd/__pycache__/
+CIFAR/dataset/__pycache__/
+CIFAR/dataset/data/
+CIFAR/distiller_zoo/__pycache__/
+CIFAR/models/__pycache__/
+CIFAR/resutls/
